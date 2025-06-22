@@ -18,8 +18,8 @@ def convert_decimals_to_float(df):
 def render_visualization(viz, snowflake_db):
     """Render a single visualization with title, chart, and controls."""
     st.title(viz.visualization_name)
-    st.write(viz.visualization_type)
-    st.caption(viz.caption)
+    # st.write(viz.visualization_type)
+    st.write(viz.caption)
     
     df = snowflake_db.execute_query_df(viz.sql_query)
     df = convert_decimals_to_float(df)

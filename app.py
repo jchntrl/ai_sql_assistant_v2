@@ -106,9 +106,11 @@ for message in st.session_state.messages:
 
     ############ Chatbot message ############
     if message["role"] == "assistant":
+
         if message["agent"] == "routing_agent":
             with st.chat_message(message["role"],avatar=assistant_avatar):
                 st.markdown(message["msg"])
+
         if message["agent"] == "sql_query_agent":
             with st.chat_message(message["role"],avatar=assistant_avatar):
                 st.markdown(message["msg"])
@@ -125,6 +127,34 @@ for message in st.session_state.messages:
                     except Exception as e:
                         print("❌ Chart error:", e)
                         print(message["chart"])
+
+        if message["agent"] == "dashboard_agent":
+            with st.chat_message(message["role"],avatar=assistant_avatar):
+                visualizations = message["visualizations"]
+                num_viz = len(visualizations)
+                if num_viz >= 2:
+                        # First row (first 2 visualizations)
+                        cols = st.columns(2)
+                        for i in range(min(2, num_viz)):
+                            with cols[i]:
+                                render_visualization(visualizations[i], snowflake_db)
+
+                if num_viz >= 4:
+                    # Second row (next 2 visualizations)
+                    cols = st.columns(2)
+                    for i in range(2, min(4, num_viz)):
+                        with cols[i - 2]:
+                            render_visualization(visualizations[i], snowflake_db)
+
+                if num_viz >= 5:
+                    # Third row (the last visualization, full width)
+                    render_visualization(visualizations[4], snowflake_db)
+                elif num_viz == 1:
+                    # Single visualization, full width
+                    render_visualization(visualizations[0], snowflake_db)
+                elif 2 < num_viz < 4:
+                    # Handle 3 visualizations
+                    render_visualization(visualizations[2], snowflake_db)
 
 
 if "router_counter" not in st.session_state:
@@ -201,7 +231,6 @@ if user_input := st.chat_input(key="Initial request"):
                         
                             st.session_state.routing = routing
                             # st.session_state.router_counter += 1
-                            
 
             if st.session_state.handoff == 'sql_query_agent': 
 
@@ -259,22 +288,40 @@ if user_input := st.chat_input(key="Initial request"):
                     response = asyncio.run(run_sql_dashboard_agents(st.session_state.routing.user_request,selected_db,selected_schema))
                     # response = dashboard
 
+                # print(response)
+
                 visualizations = response.visualizations
+                num_viz = len(visualizations)
+                
+                if num_viz >= 2:
+                    # First row (first 2 visualizations)
+                    cols = st.columns(2)
+                    for i in range(min(2, num_viz)):
+                        with cols[i]:
+                            render_visualization(visualizations[i], snowflake_db)
 
-                # First row (first 2 visualizations)
-                cols = st.columns(2)
-                for i in range(2):
-                    with cols[i]:
-                        render_visualization(visualizations[i], snowflake_db)
+                if num_viz >= 4:
+                    # Second row (next 2 visualizations)
+                    cols = st.columns(2)
+                    for i in range(2, min(4, num_viz)):
+                        with cols[i - 2]:
+                            render_visualization(visualizations[i], snowflake_db)
 
-                # Second row (next 2 visualizations)
-                cols = st.columns(2)
-                for i in range(2, 4):
-                    with cols[i - 2]:
-                        render_visualization(visualizations[i], snowflake_db)
+                if num_viz >= 5:
+                    # Third row (the last visualization, full width)
+                    render_visualization(visualizations[4], snowflake_db)
+                elif num_viz == 1:
+                    # Single visualization, full width
+                    render_visualization(visualizations[0], snowflake_db)
+                elif 2 < num_viz < 4:
+                    # Handle 3 visualizations
+                    render_visualization(visualizations[2], snowflake_db)
 
-                # Third row (the last visualization, full width)
-                render_visualization(visualizations[4], snowflake_db)
+                st.session_state.messages.append({"role": "assistant",
+                                "agent": 'dashboard_agent',
+                                "visualizations": visualizations,
+                                })
+
                 del st.session_state['router_counter']
                 del st.session_state['handoff']
                 del st.session_state['routing']
