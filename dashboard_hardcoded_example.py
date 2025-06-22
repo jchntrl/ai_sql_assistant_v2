@@ -160,10 +160,7 @@ if run == True:
                   df = snowflake_db.execute_query_df(viz.sql_query)
                   # st.dataframe(snowflake_db.execute_query_df(viz.sql_query))
 
-                  if not df.empty:
-                        for col in df.columns:
-                              if isinstance(df[col].iloc[0], Decimal):
-                                    df[col] = df[col].astype(float)
+                  df = convert_decimals_to_float(df)
 
                   st.dataframe(df)
                   with st.popover("Show SQL query",use_container_width=False):

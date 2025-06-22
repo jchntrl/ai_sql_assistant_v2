@@ -5,7 +5,6 @@ from snowflake_utils import SnowflakeHandler
 import pandas as pd
 from PIL import Image
 import io
-from decimal import Decimal
 from streamlit_ace import st_ace
 
 from agents import Agent, Runner, function_tool, trace, handoff
@@ -13,6 +12,7 @@ from agents import Agent, Runner, function_tool, trace, handoff
 from ai_agents.routing_agent import  run_routing_agent, routing_agent
 from ai_agents.sql_query_agents import run_sql_query_agents
 from ai_agents.chart_generator_agents import  run_chart_generator_agents
+from ai_agents.sql_dashboard_agents import run_sql_dashboard_agents
 
 st.set_page_config(
     layout="wide",
@@ -210,7 +210,7 @@ if user_input := st.chat_input(key="Initial request"):
 
                     message = query_agent.message
                     sql_query = query_agent.sql_query
-                    
+
                 st.write(message)
 
                 if sql_query == "": 
@@ -218,10 +218,7 @@ if user_input := st.chat_input(key="Initial request"):
                 else:
 
                     df = snowflake_db.execute_query_df(sql_query)
-                    if not df.empty:
-                        for col in df.columns:
-                            if isinstance(df[col].iloc[0], Decimal):
-                                df[col] = df[col].astype(float)
+                    df = convert_decimals_to_float(df)
                     st.dataframe(df)
 
                     with st.popover("Show SQL query",use_container_width=False):
@@ -256,8 +253,28 @@ if user_input := st.chat_input(key="Initial request"):
                 del st.session_state['routing']
                 del st.session_state['user_input_history']
             
-            if handoff == 'sql_query_agent': 
-                st.error("Need to add Dashboard agent to app")
+            if st.session_state.handoff == 'dashboard_agent': 
+
+                with st.spinner("Generating dashboard ...", show_time=True):
+                    response = asyncio.run(run_sql_dashboard_agents(st.session_state.routing.user_request,selected_db,selected_schema))
+                    # response = dashboard
+
+                visualizations = response.visualizations
+
+                # First row (first 2 visualizations)
+                cols = st.columns(2)
+                for i in range(2):
+                    with cols[i]:
+                        render_visualization(visualizations[i], snowflake_db)
+
+                # Second row (next 2 visualizations)
+                cols = st.columns(2)
+                for i in range(2, 4):
+                    with cols[i - 2]:
+                        render_visualization(visualizations[i], snowflake_db)
+
+                # Third row (the last visualization, full width)
+                render_visualization(visualizations[4], snowflake_db)
                 del st.session_state['router_counter']
                 del st.session_state['handoff']
                 del st.session_state['routing']
@@ -305,10 +322,7 @@ with st.sidebar:
     if content:
         try: 
             df = snowflake_db.execute_query_df(content)
-            
-            for col in df.columns:
-                if isinstance(df[col].iloc[0], Decimal):
-                    df[col] = df[col].astype(float)
+            df = convert_decimals_to_float(df)
             st.dataframe(df)
 
         except Exception as e:
