@@ -20,14 +20,8 @@ from ai_agents.chart_generator_agents import  data_vizualization_agent
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Initialize the Snowflake database handler
-snowflake_db = SnowflakeHandler(
-    user=st.secrets["SNOWFLAKE_USER"],
-    password=st.secrets["SNOWFLAKE_PASSWORD"],
-    account=st.secrets["SNOWFLAKE_ACCOUNT"],
-    warehouse=st.secrets["SNOWFLAKE_WAREHOUSE"],
-    database=None,
-    schema=None)
+# Global variable to hold the SnowflakeHandler instance
+snowflake_db = None
 
 ### TOOLS
 
@@ -169,7 +163,7 @@ Using this information, your task is to:
 
 For **each visualization**, output the following:
 - `visualization_name`: A short descriptive title.
-- `visualization_type`: Choose one of `line_chart`, `bar_chart`, `area_chart`, `scatter_chart`.
+- `visualization_type`: Choose one of `line_chart`, `bar_chart`, `area_chart`, `scatter_chart`, `map`.
 - `caption`: A short sentence describing the purpose or insight of the visualization.
 - `sql_query`: A Snowflake-compatible SQL query to extract the necessary data. When referencing tables use the format <schema_name>.<table_name>
 
@@ -186,7 +180,7 @@ Guidelines:
     output_type= DashboardDesignerOutput,
 )
 
-async def run_sql_dashboard_agents(user_input: str, selected_db: str, selected_schema: str) -> DashboardDesignerOutput:
+async def run_sql_dashboard_agents(user_input: str, snowflake_handler: SnowflakeHandler) -> DashboardDesignerOutput:
     """
     Generate a comprehensive dashboard with visualizations based on user request.
     
@@ -199,10 +193,9 @@ async def run_sql_dashboard_agents(user_input: str, selected_db: str, selected_s
         DashboardFinalOutput: Contains generated visualizations with SQL queries and chart code
     """
 
-    snowflake_db.database = selected_db
-    snowflake_db.schema = selected_schema
-
-    snowflake_db.connect()
+    # Set the global snowflake_db to the passed handler instance
+    global snowflake_db
+    snowflake_db = snowflake_handler
 
     dashboard_result = await Runner.run(dashboard_designer_agent, user_input)
 

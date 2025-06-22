@@ -15,6 +15,9 @@ from snowflake_utils import SnowflakeHandler
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
+# Global variable to hold the SnowflakeHandler instance
+snowflake_db = None
+
 # Initialize the Snowflake database handler
 snowflake_db = SnowflakeHandler(
     user=st.secrets["SNOWFLAKE_USER"],
@@ -216,8 +219,7 @@ sql_query_validator_agent = Agent(
     If the query is invalid, return "sql_valid" as false and provide a detailed explanation of the problems and suggestions for improvement and handoff to the sql_query_builder_agent.
     """,
     model = 'gpt-4.1-mini',
-    # tools=[get_tables_columns,get_tables_sample,validate_sql_query],
-    tools=[get_tables_info,validate_sql_query],
+    tools=[get_tables_info,get_distinct_value,validate_sql_query],
     output_type=SQLValidationOutput,
 )
 
@@ -225,7 +227,7 @@ class SQLAgentFinalOutput(BaseModel):
     message: Optional[str]
     sql_query: Optional[str]
 
-async def run_sql_query_agents(user_input: str, selected_db: str, selected_schema: str, force_validator_agent: bool) -> SQLAgentFinalOutput:
+async def run_sql_query_agents(user_input: str,  snowflake_handler: SnowflakeHandler, force_validator_agent: bool) -> SQLAgentFinalOutput:
     """
     Orchestrate SQL query generation using multiple specialized agents.
     
@@ -239,10 +241,9 @@ async def run_sql_query_agents(user_input: str, selected_db: str, selected_schem
         SQLAgentFinalOutput: Contains generated SQL query and explanatory message
     """
 
-    snowflake_db.database = selected_db
-    snowflake_db.schema = selected_schema
-
-    snowflake_db.connect()
+    # Set the global snowflake_db to the passed handler instance
+    global snowflake_db
+    snowflake_db = snowflake_handler
 
     response = SQLAgentFinalOutput(
         message = None, 
@@ -310,7 +311,6 @@ async def run_sql_query_agents(user_input: str, selected_db: str, selected_schem
     response.message = sql_builder.final_output.comment
     response.sql_query = sql_builder.final_output.sql_query
     
-    snowflake_db.close_connection()
 
     return response
 

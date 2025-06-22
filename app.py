@@ -255,7 +255,7 @@ if user_input := st.chat_input(key="Initial request"):
 
                             # Log routing agent execution
                             routing_start = time.time()
-                            routing = asyncio.run(run_routing_agent(user_input, selected_db, selected_schema))
+                            routing = asyncio.run(run_routing_agent(user_input, snowflake_db))
                             routing_time = time.time() - routing_start
                             
                             log_agent_performance("routing_agent", routing_time, True, {
@@ -284,7 +284,7 @@ if user_input := st.chat_input(key="Initial request"):
 
                             print(user_input)
 
-                            routing = asyncio.run(run_routing_agent(user_input, selected_db, selected_schema))
+                            routing = asyncio.run(run_routing_agent(user_input, snowflake_db))
 
                             if routing.handoff == 'user':
                                 st.session_state.user_input_history.append(f"routing agent: {routing.questions_for_users}")
@@ -308,7 +308,7 @@ if user_input := st.chat_input(key="Initial request"):
                 with st.spinner("Executing SQL query...", show_time=True):
                     # Log SQL query agent execution
                     sql_start = time.time()
-                    query_agent = asyncio.run(run_sql_query_agents(st.session_state.routing.user_request,selected_db,selected_schema,force_validator_agent))
+                    query_agent = asyncio.run(run_sql_query_agents(st.session_state.routing.user_request,snowflake_db,force_validator_agent))
                     sql_time = time.time() - sql_start
 
                     message = query_agent.message
@@ -326,7 +326,6 @@ if user_input := st.chat_input(key="Initial request"):
                 if sql_query == "": 
                     chart = ""
                 else:
-
                     df = snowflake_db.execute_query_df(sql_query)
                     df = convert_decimals_to_float(df)
                     st.dataframe(df)
@@ -339,7 +338,7 @@ if user_input := st.chat_input(key="Initial request"):
                     with st.spinner("Generating chart...", show_time=True):
                         chart = asyncio.run(run_chart_generator_agents(user_input,df_info_str))
 
-                    if chart.chart_needed:
+                    if chart.visualization_needed:
                         try:
                             exec(chart.code_block)
                             with st.popover("Show chart code",use_container_width=False):
@@ -366,7 +365,7 @@ if user_input := st.chat_input(key="Initial request"):
                 with st.spinner("Generating dashboard ...", show_time=True):
                     # Log dashboard agent execution
                     dashboard_start = time.time()
-                    response = asyncio.run(run_sql_dashboard_agents(st.session_state.routing.user_request,selected_db,selected_schema))
+                    response = asyncio.run(run_sql_dashboard_agents(st.session_state.routing.user_request,snowflake_db))
                     dashboard_time = time.time() - dashboard_start
                     
                     log_agent_performance("dashboard_agent", dashboard_time, len(response.visualizations) > 0, {
@@ -413,7 +412,7 @@ if user_input := st.chat_input(key="Initial request"):
 
                     st.session_state.messages.append({"role": "assistant",
                                     "agent": 'dashboard_agent',
-                                    "message": None,
+                                    "message": "",
                                     "visualizations": visualizations,
                                     })
 
@@ -436,6 +435,8 @@ with st.sidebar:
     st.write(f"When referencing table use {snowflake_db.schema}.<table_name>")
 
     col1, col2 = st.columns(2)
+
+    snowflake_db.connect()
 
     with col1:
         with st.popover(f"# Table list", icon="📋",use_container_width=True):
@@ -492,5 +493,6 @@ with st.sidebar:
                 except Exception as e:
                     print("❌ Chart error:", e)
                     print(chart.code_block)
-
+    
+    snowflake_db.close_connection()
 

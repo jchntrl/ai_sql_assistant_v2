@@ -180,3 +180,63 @@ def get_dataframe_info(df, include_sample=True, sample_rows=5):
     
     return df_info_str
 
+
+def render_visualization_bob(viz, snowflake_db):
+    """Render a single visualization with title, chart, and controls."""
+    start_time = time.time()
+    
+    logger.info("Starting visualization render", extra={
+        'viz_name': viz.visualization_name,
+        'viz_type': viz.visualization_type,
+        'code_block': viz.chart_code,
+        'action': 'visualization_render_start'
+    })
+    
+    st.title(viz.visualization_name)
+    st.write(viz.caption)
+    
+    # Execute query and convert data
+    query_start = time.time()
+    df = snowflake_db.execute_query_df(viz.sql_query)
+    query_time = time.time() - query_start
+    
+    df = convert_decimals_to_float(df)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        with st.popover("Show table", use_container_width=True):
+            st.dataframe(df)
+    with col2:
+        with st.popover("Show SQL query", use_container_width=True):
+            st.code(viz.sql_query, language="sql")
+    
+    # Execute chart code
+    chart_success = True
+    try:
+        exec(viz.chart_code)
+        with col3:
+            with st.popover("Show chart code", use_container_width=True):
+                st.code(viz.chart_code, language="python")
+    except Exception as e:
+        chart_success = False
+        logger.error("Chart execution failed", extra={
+            'viz_name': viz.visualization_name,
+            'viz_type': viz.visualization_type,
+            'error': str(e),
+            'code_block': viz.chart_code,
+            'action': 'chart_execution_failed'
+        })
+        print("❌ Chart error:", e)
+        print(viz.chart_code)
+    
+    total_time = time.time() - start_time
+    logger.info("Visualization render completed", extra={
+        'viz_name': viz.visualization_name,
+        'viz_type': viz.visualization_type,
+        'total_time': total_time,
+        'query_time': query_time,
+        'chart_success': chart_success,
+        'rows_returned': len(df),
+        'code_block': viz.chart_code,
+        'action': 'visualization_render_completed'
+    })
