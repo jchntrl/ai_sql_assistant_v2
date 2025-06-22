@@ -30,8 +30,10 @@ snowflake_db = SnowflakeHandler(
 @function_tool
 def get_database_context() -> str:
     """
-    Retrieve the database schema and the list of its tables.
-    :return: markdown table as str.
+    Retrieve the current schema name and table list with metadata from the database.
+    
+    Returns:
+        str: Formatted markdown containing schema name and tables information
     """
     output = f"""
 # Schema
@@ -45,9 +47,13 @@ def get_database_context() -> str:
 @function_tool
 def ask_user_for_clarification(clarifying_questions: List[str]) -> List[str]:
     """
-    Ask the user for clarification on ambiguous points in the request.
-    :param clarifying_questions: List of questions to ask the user.
-    :return: User's response as a string.
+    Present clarifying questions to the user for interactive input.
+    
+    Args:
+        clarifying_questions: List of questions to ask the user
+        
+    Returns:
+        List[str]: List of user responses corresponding to each question
     """
     answer = []
     for i, question in enumerate(clarifying_questions, start=1):
@@ -143,7 +149,18 @@ Be cautious. When in doubt, choose to clarify. It is better to ask a follow-up q
     output_type= RoutingOutput,
 )
 
-async def run_routing_agent(user_input,selected_db,selected_schema):
+async def run_routing_agent(user_input: str, selected_db: str, selected_schema: str) -> RoutingOutput:
+    """
+    Route user requests to appropriate agents based on content analysis.
+    
+    Args:
+        user_input: Natural language request from user
+        selected_db: Target database name
+        selected_schema: Target schema name
+        
+    Returns:
+        RoutingOutput: Contains routing decision and any clarifying questions or refined requests
+    """
 
     snowflake_db.database = selected_db
     snowflake_db.schema = selected_schema

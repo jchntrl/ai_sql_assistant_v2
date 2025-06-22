@@ -6,6 +6,18 @@ import pandas as pd
 from PIL import Image
 import io
 from streamlit_ace import st_ace
+import time
+import os
+
+# Ensure logging is set up before importing logger
+from logging_config import setup_logging, get_logger
+
+# Initialize logging for the app
+logger = setup_logging(
+    log_level="INFO",
+    log_file="logs/snowgpt.log",
+    enable_console=True
+)
 
 from agents import Agent, Runner, function_tool, trace, handoff
 
@@ -19,6 +31,15 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
     )
 
+# Test logging setup
+logger.info("Logging system fully configured and ready")
+
+# Log app startup
+logger.info("SnowGPT application started", extra={
+    'app_startup': True,
+    'session_id': st.session_state.get('session_id', 'unknown')
+})
+
 st.title(":snowflake: :blue[SnowGPT:] Your AI-Powered SQL Assistant")
 
 st.markdown("#### A smart assistant that queries your Snowflake data using natural language")
@@ -31,15 +52,6 @@ st.markdown("#### A smart assistant that queries your Snowflake data using natur
 ########################################################################################################
 ###########                               INIT                              ############################
 ########################################################################################################
-
-# --------------- CHAT HISTORY --------------- #
-# Initialize the chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# --------------- CHAT AVATARS --------------- #
-user_avatar = Image.open("images/julien.png")
-assistant_avatar = Image.open("images/snowgpt.png")
 
 # --------------- SNOWFLAKE CONNECTION --------------- #
 snowflake_db = SnowflakeHandler(
@@ -55,8 +67,8 @@ snowflake_db.connect()
 
 selected_db = st.selectbox(
             "__Which database do you want to use?__",
-            # list([db[0] for db in snowflake_db.get_databases()]),
-            ["SANDBOX"],
+            list([db[0] for db in snowflake_db.get_databases()]),
+            # ["SANDBOX"],
             index=0,
             placeholder="Select database...",
         )
@@ -65,8 +77,8 @@ snowflake_db.database = selected_db
 
 selected_schema = st.selectbox(
             "__Which schema do you want to use?__",
-            # list([schema[0] for schema in snowflake_db.get_schemas() if not schema[0].startswith("INFORMATION_SCHEMA")]),
-            ["SUPERSTORE"],
+            list([schema[0] for schema in snowflake_db.get_schemas() if not schema[0].startswith("INFORMATION_SCHEMA")]),
+            # ["SUPERSTORE"],
             index=0,
             placeholder="Select schema...",
         )
@@ -74,12 +86,52 @@ selected_schema = st.selectbox(
 # Close the previous connection before changing database/schema
 snowflake_db.close_connection()
 
+# Check if database or schema has changed and reset session state if needed
+if 'current_db' not in st.session_state:
+    st.session_state.current_db = None
+if 'current_schema' not in st.session_state:
+    st.session_state.current_schema = None
+
+# Reset session state if database or schema changed
+if (st.session_state.current_db != selected_db or 
+    st.session_state.current_schema != selected_schema):
+    
+    # Log the context change
+    logger.info("Database/Schema context changed", extra={
+        'previous_db': st.session_state.current_db,
+        'new_db': selected_db,
+        'previous_schema': st.session_state.current_schema,
+        'new_schema': selected_schema
+    })
+    
+    # Clear relevant session state
+    keys_to_clear = ['messages', 'router_counter', 'handoff', 'routing', 'user_input_history']
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
+    
+    # Update current context tracking
+    st.session_state.current_db = selected_db
+    st.session_state.current_schema = selected_schema
+    
+    logger.info("Session state reset due to context change")
+
 # Update the database and schema in the SnowflakeHandler
 snowflake_db.database = selected_db
 snowflake_db.schema = selected_schema
 
 # Reconnect to the Snowflake database with the selected database and schema
 snowflake_db.connect()
+
+
+# --------------- CHAT HISTORY --------------- #
+# Initialize the chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# --------------- CHAT AVATARS --------------- #
+user_avatar = Image.open("images/julien.png")
+assistant_avatar = Image.open("images/snowgpt.png")
 
 
 ########################################################################################################
@@ -130,31 +182,35 @@ for message in st.session_state.messages:
 
         if message["agent"] == "dashboard_agent":
             with st.chat_message(message["role"],avatar=assistant_avatar):
-                visualizations = message["visualizations"]
-                num_viz = len(visualizations)
-                if num_viz >= 2:
-                        # First row (first 2 visualizations)
+                if message["message"]: 
+                    st.write(message["message"])
+                else:
+
+                    visualizations = message["visualizations"]
+                    num_viz = len(visualizations)
+                    if num_viz >= 2:
+                            # First row (first 2 visualizations)
+                            cols = st.columns(2)
+                            for i in range(min(2, num_viz)):
+                                with cols[i]:
+                                    render_visualization(visualizations[i], snowflake_db)
+
+                    if num_viz >= 4:
+                        # Second row (next 2 visualizations)
                         cols = st.columns(2)
-                        for i in range(min(2, num_viz)):
-                            with cols[i]:
+                        for i in range(2, min(4, num_viz)):
+                            with cols[i - 2]:
                                 render_visualization(visualizations[i], snowflake_db)
 
-                if num_viz >= 4:
-                    # Second row (next 2 visualizations)
-                    cols = st.columns(2)
-                    for i in range(2, min(4, num_viz)):
-                        with cols[i - 2]:
-                            render_visualization(visualizations[i], snowflake_db)
-
-                if num_viz >= 5:
-                    # Third row (the last visualization, full width)
-                    render_visualization(visualizations[4], snowflake_db)
-                elif num_viz == 1:
-                    # Single visualization, full width
-                    render_visualization(visualizations[0], snowflake_db)
-                elif 2 < num_viz < 4:
-                    # Handle 3 visualizations
-                    render_visualization(visualizations[2], snowflake_db)
+                    if num_viz >= 5:
+                        # Third row (the last visualization, full width)
+                        render_visualization(visualizations[4], snowflake_db)
+                    elif num_viz == 1:
+                        # Single visualization, full width
+                        render_visualization(visualizations[0], snowflake_db)
+                    elif 2 < num_viz < 4:
+                        # Handle 3 visualizations
+                        render_visualization(visualizations[2], snowflake_db)
 
 
 if "router_counter" not in st.session_state:
@@ -168,6 +224,13 @@ if "user_input_history" not in st.session_state:
 
 ########### React to user input ###########
 if user_input := st.chat_input(key="Initial request"):
+    # Log user input
+    log_user_interaction("user_input", {
+        'input_length': len(user_input),
+        'router_counter': st.session_state.get('router_counter', 0),
+        'handoff_state': st.session_state.get('handoff', 'user')
+    })
+    
     # Display user message in chat container
     with st.chat_message("user",avatar=user_avatar):
         st.markdown(user_input)
@@ -190,7 +253,15 @@ if user_input := st.chat_input(key="Initial request"):
                             st.session_state.router_counter += 1
                             st.session_state.user_input_history.append(f"user: {user_input}")
 
+                            # Log routing agent execution
+                            routing_start = time.time()
                             routing = asyncio.run(run_routing_agent(user_input, selected_db, selected_schema))
+                            routing_time = time.time() - routing_start
+                            
+                            log_agent_performance("routing_agent", routing_time, True, {
+                                'handoff_decision': routing.handoff,
+                                'router_counter': st.session_state.router_counter
+                            })
 
                             if routing.handoff == 'user':
                                 st.session_state.user_input_history.append(f"routing agent: {routing.questions_for_users}")
@@ -235,10 +306,20 @@ if user_input := st.chat_input(key="Initial request"):
             if st.session_state.handoff == 'sql_query_agent': 
 
                 with st.spinner("Executing SQL query...", show_time=True):
+                    # Log SQL query agent execution
+                    sql_start = time.time()
                     query_agent = asyncio.run(run_sql_query_agents(st.session_state.routing.user_request,selected_db,selected_schema,force_validator_agent))
+                    sql_time = time.time() - sql_start
 
                     message = query_agent.message
                     sql_query = query_agent.sql_query
+                    
+                    log_agent_performance("sql_query_agent", sql_time, sql_query != "", {
+                        'sql_generated': sql_query != "",
+                        'query_length': len(sql_query) if sql_query else 0,
+                        'database': selected_db,
+                        'schema': selected_schema
+                    })
 
                 st.write(message)
 
@@ -253,9 +334,7 @@ if user_input := st.chat_input(key="Initial request"):
                     with st.popover("Show SQL query",use_container_width=False):
                             st.code(sql_query, language="sql")
 
-                    buffer = io.StringIO()
-                    df.info(buf=buffer)
-                    df_info_str = buffer.getvalue()
+                    df_info_str = get_dataframe_info(df, include_sample=True)
 
                     with st.spinner("Generating chart...", show_time=True):
                         chart = asyncio.run(run_chart_generator_agents(user_input,df_info_str))
@@ -278,52 +357,68 @@ if user_input := st.chat_input(key="Initial request"):
                                 })
 
                 del st.session_state['router_counter']
-                del st.session_state['handoff']
+                st.session_state.handoff = 'user'
                 del st.session_state['routing']
                 del st.session_state['user_input_history']
             
             if st.session_state.handoff == 'dashboard_agent': 
 
                 with st.spinner("Generating dashboard ...", show_time=True):
+                    # Log dashboard agent execution
+                    dashboard_start = time.time()
                     response = asyncio.run(run_sql_dashboard_agents(st.session_state.routing.user_request,selected_db,selected_schema))
-                    # response = dashboard
+                    dashboard_time = time.time() - dashboard_start
+                    
+                    log_agent_performance("dashboard_agent", dashboard_time, len(response.visualizations) > 0, {
+                        'visualizations_count': len(response.visualizations),
+                        'database': selected_db,
+                        'schema': selected_schema
+                    })
 
-                # print(response)
+                if not response.sufficient_context: 
+                    st.write(response.comment)
+                    st.session_state.messages.append({"role": "assistant",
+                                    "agent": 'dashboard_agent',
+                                    "message": response.comment
+                                    })
 
-                visualizations = response.visualizations
-                num_viz = len(visualizations)
-                
-                if num_viz >= 2:
-                    # First row (first 2 visualizations)
-                    cols = st.columns(2)
-                    for i in range(min(2, num_viz)):
-                        with cols[i]:
-                            render_visualization(visualizations[i], snowflake_db)
+                else:
 
-                if num_viz >= 4:
-                    # Second row (next 2 visualizations)
-                    cols = st.columns(2)
-                    for i in range(2, min(4, num_viz)):
-                        with cols[i - 2]:
-                            render_visualization(visualizations[i], snowflake_db)
+                    visualizations = response.visualizations
+                    num_viz = len(visualizations)
+                    
+                    if num_viz >= 2:
+                        # First row (first 2 visualizations)
+                        cols = st.columns(2)
+                        for i in range(min(2, num_viz)):
+                            with cols[i]:
+                                render_visualization(visualizations[i], snowflake_db)
 
-                if num_viz >= 5:
-                    # Third row (the last visualization, full width)
-                    render_visualization(visualizations[4], snowflake_db)
-                elif num_viz == 1:
-                    # Single visualization, full width
-                    render_visualization(visualizations[0], snowflake_db)
-                elif 2 < num_viz < 4:
-                    # Handle 3 visualizations
-                    render_visualization(visualizations[2], snowflake_db)
+                    if num_viz >= 4:
+                        # Second row (next 2 visualizations)
+                        cols = st.columns(2)
+                        for i in range(2, min(4, num_viz)):
+                            with cols[i - 2]:
+                                render_visualization(visualizations[i], snowflake_db)
 
-                st.session_state.messages.append({"role": "assistant",
-                                "agent": 'dashboard_agent',
-                                "visualizations": visualizations,
-                                })
+                    if num_viz >= 5:
+                        # Third row (the last visualization, full width)
+                        render_visualization(visualizations[4], snowflake_db)
+                    elif num_viz == 1:
+                        # Single visualization, full width
+                        render_visualization(visualizations[0], snowflake_db)
+                    elif 2 < num_viz < 4:
+                        # Handle 3 visualizations
+                        render_visualization(visualizations[2], snowflake_db)
+
+                    st.session_state.messages.append({"role": "assistant",
+                                    "agent": 'dashboard_agent',
+                                    "message": None,
+                                    "visualizations": visualizations,
+                                    })
 
                 del st.session_state['router_counter']
-                del st.session_state['handoff']
+                st.session_state.handoff = 'user'
                 del st.session_state['routing']
                 del st.session_state['user_input_history']
 

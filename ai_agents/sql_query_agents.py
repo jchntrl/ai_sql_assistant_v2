@@ -29,8 +29,10 @@ snowflake_db = SnowflakeHandler(
 @function_tool
 def get_database_context() -> str:
     """
-    Retrieve the database schema and the list of its tables.
-    :return: markdown table as str.
+    Retrieve the current schema name and table list with metadata from the database.
+    
+    Returns:
+        str: Formatted markdown containing schema name and tables information
     """
     output = f"""
 # Schema
@@ -44,36 +46,70 @@ def get_database_context() -> str:
 @function_tool
 def get_tables_columns(table_list: list[str]) -> str:
     """
-    Retrieve the columns of specific tables in the database.
-    :param table_list: List of tables to retrieve columns for.
-    :return: markdown tables.
+    Retrieve detailed column definitions for specified tables.
+    
+    Args:
+        table_list: List of table names to get column information for
+        
+    Returns:
+        str: Markdown formatted table definitions with column metadata
     """
     return snowflake_db.get_table_list_columns(table_list)
 
 @function_tool
 def get_tables_sample(table_list: list[str]) -> str:
     """
-    Retrieve a 5 rows sample of specific tables in the database.
-    :param table_list: List of tables to retrieve sample for.
-    :return: markdown tables.
+    Retrieve sample data (5 rows) from specified tables.
+    
+    Args:
+        table_list: List of table names to get sample data from
+        
+    Returns:
+        str: Markdown formatted tables with sample rows from each table
     """
     return snowflake_db.get_tables_sample_md(table_list)
 
 @function_tool
 def get_tables_info(table_list: list[str]) -> str:
     """
-    Retrieve the columns definition and a 5 rows sample of specific tables in the database.
-    :param table_list: List of tables to retrieve sample for.
-    :return: markdown tables.
+    Retrieve comprehensive table information including column definitions and sample data.
+    
+    Args:
+        table_list: List of table names to get complete information for
+        
+    Returns:
+        str: Markdown formatted output with table definitions and 5 sample rows for each table
     """
     return snowflake_db.get_tables_info_md(table_list)
 
 @function_tool
+def get_distinct_value(field: str, table: str, filter: str ='')-> str:
+    """
+    Get distinct values for a specific column in a table with optional filtering.
+    
+    Args:
+        field: Column name to get distinct values for
+        table: Table name to query
+        filter: Optional WHERE clause condition (default: '')
+        
+    Returns:
+        str: Markdown formatted table with up to 15 distinct values
+        
+    Example:
+        get_distinct_value('COUNTY','DEMOGRAPHICS',filter="STATE = 'LA'")
+    """
+    return snowflake_db.get_distinct_values_dict(field,table,filter)
+
+@function_tool
 def validate_sql_query(sql_query: str) -> str:
     """
-    Validate the SQL query can be executed.
-    :param sql_query: The SQL query to validate.
-    :return: valid or not valid.
+    Validate SQL query syntax without executing it using EXPLAIN.
+    
+    Args:
+        sql_query: SQL query string to validate
+        
+    Returns:
+        str: "✅ Query is valid." if syntax is correct, error message if invalid
     """
     return snowflake_db.validate_query(sql_query)
     
@@ -81,9 +117,13 @@ def validate_sql_query(sql_query: str) -> str:
 @function_tool
 def ask_user_for_clarification(clarifying_questions: List[str]) -> List[str]:
     """
-    Ask the user for clarification on ambiguous points in the request.
-    :param clarifying_questions: List of questions to ask the user.
-    :return: User's response as a string.
+    Present clarifying questions to the user for interactive input.
+    
+    Args:
+        clarifying_questions: List of questions to ask the user
+        
+    Returns:
+        List[str]: List of user responses corresponding to each question
     """
     answer = []
     for i, question in enumerate(clarifying_questions, start=1):
@@ -114,7 +154,7 @@ database_sme_agent = Agent(
     # model="gpt-4o",
     model="gpt-4.1",
     # tools=[get_database_context,get_tables_columns],
-    tools=[get_database_context,get_tables_info],
+    tools=[get_database_context,get_tables_info,get_distinct_value],
     # tools=[get_database_context,get_tables_columns,get_tables_sample],
     # tools=[get_database_context,get_tables_columns,ask_user_for_clarification],
     output_type= DBSMEOutput,
@@ -193,7 +233,19 @@ class SQLAgentFinalOutput(BaseModel):
     message: Optional[str]
     sql_query: Optional[str]
 
-async def run_sql_query_agents(user_input,selected_db,selected_schema,force_validator_agent):
+async def run_sql_query_agents(user_input: str, selected_db: str, selected_schema: str, force_validator_agent: bool) -> SQLAgentFinalOutput:
+    """
+    Orchestrate SQL query generation using multiple specialized agents.
+    
+    Args:
+        user_input: Natural language request from user
+        selected_db: Target database name
+        selected_schema: Target schema name
+        force_validator_agent: Whether to force validation even if query passes basic checks
+        
+    Returns:
+        SQLAgentFinalOutput: Contains generated SQL query and explanatory message
+    """
 
     snowflake_db.database = selected_db
     snowflake_db.schema = selected_schema

@@ -2,6 +2,11 @@ import asyncio
 import snowflake.connector
 import streamlit as st
 from typing import Optional, List, Tuple, Any
+import time
+import logging
+
+# Get the already configured logger from the main app
+logger = logging.getLogger("snowgpt")
 
 
 
@@ -9,6 +14,14 @@ class SnowflakeHandler:
     def __init__(self, user: str, password: str, account: str, warehouse: str, database: str, schema: str) -> None:
         """
         Initialize the SnowflakeHandler with connection parameters.
+        
+        Args:
+            user: Snowflake username
+            password: Snowflake password
+            account: Snowflake account identifier
+            warehouse: Snowflake warehouse name
+            database: Initial database name (can be changed later)
+            schema: Initial schema name (can be changed later)
         """
         self.user: str = user
         self.password: str = password
@@ -20,22 +33,58 @@ class SnowflakeHandler:
 
     def connect(self) -> None:
         """
-        Establish a connection to Snowflake.
+        Establish a connection to Snowflake using the configured parameters.
+        
+        Raises:
+            Exception: If connection fails due to invalid credentials or network issues
         """
-        self.connection = snowflake.connector.connect(
-            user=self.user,
-            password=self.password,
-            account=self.account,
-            warehouse=self.warehouse,
-            database=self.database,
-            schema=self.schema
-        )
-        print(f"Connected to Snowflake ({self.database}.{self.schema}).")
+        start_time = time.time()
+        
+        logger.info("Attempting Snowflake connection", extra={
+            'account': self.account,
+            'warehouse': self.warehouse,
+            'database': self.database,
+            'schema': self.schema
+        })
+        
+        try:
+            self.connection = snowflake.connector.connect(
+                user=self.user,
+                password=self.password,
+                account=self.account,
+                warehouse=self.warehouse,
+                database=self.database,
+                schema=self.schema
+            )
+            connection_time = time.time() - start_time
+            
+            logger.info("Snowflake connection established", extra={
+                'connection_time': connection_time,
+                'account': self.account,
+                'database': self.database,
+                'schema': self.schema
+            })
+            
+            print(f"Connected to Snowflake ({self.database}.{self.schema}).")
+            
+        except Exception as e:
+            connection_time = time.time() - start_time
+            logger.error("Snowflake connection failed", extra={
+                'connection_time': connection_time,
+                'error': str(e),
+                'account': self.account
+            })
+            raise
 
     def get_databases(self) -> List[str]:
         """
-        Query INFORMATION_SCHEMA.TABLES and return the list of databases available .
-        :return: markdown table as str.
+        Retrieve all available databases from Snowflake.
+        
+        Returns:
+            List[str]: List of tuples containing database names
+            
+        Raises:
+            Exception: If no connection is established or query fails
         """
 
         query = f"SELECT DATABASE_NAME FROM {self.database}.INFORMATION_SCHEMA.DATABASES ORDER BY 1 ASC"
@@ -57,8 +106,13 @@ class SnowflakeHandler:
 
     def get_schemas(self) -> List[str]:
         """
-        Query INFORMATION_SCHEMA.TABLES and return the list of schemas available .
-        :return: markdown table as str.
+        Retrieve all available schemas from the current database.
+        
+        Returns:
+            List[str]: List of tuples containing schema names
+            
+        Raises:
+            Exception: If no connection is established or query fails
         """
 
         query = f"SELECT SCHEMA_NAME FROM {self.database}.INFORMATION_SCHEMA.SCHEMATA ORDER BY 1 ASC"
@@ -80,8 +134,13 @@ class SnowflakeHandler:
 
     def get_tables(self) -> str:
         """
-        Query INFORMATION_SCHEMA.TABLES and return the list of tables in a Schema .
-        :return: markdown table as str.
+        Retrieve all tables from the current schema with metadata.
+        
+        Returns:
+            str: Table information (schema, name, type, row count) formatted as markdown table
+            
+        Raises:
+            Exception: If no connection is established or query fails
         """
 
         query = f"SELECT TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE,ROW_COUNT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{self.schema}'"
@@ -191,18 +250,50 @@ class SnowflakeHandler:
 
     def execute_query_df(self, query: str):
         """
-        Execute a SQL query and return the results.
-        :param query: SQL query string to execute.
-        :return: List of tuples containing query results.
+        Execute a SQL query and return results as a pandas DataFrame.
+        
+        Args:
+            query: SQL query string to execute
+            
+        Returns:
+            pandas.DataFrame: Query results as DataFrame, or error string if query fails
+            
+        Raises:
+            Exception: If no connection is established
         """
+        start_time = time.time()
+        
+        logger.info("Executing SQL query", extra={
+            'query_length': len(query),
+            'database': self.database,
+            'schema': self.schema
+        })
+        
         if not self.connection:
+            logger.error("Connection not established")
             raise Exception("Connection not established. Call connect() first.")
         
         cursor = self.connection.cursor()
         try:
             cursor.execute(query)
-            return cursor.fetch_pandas_all()
+            result = cursor.fetch_pandas_all()
+            execution_time = time.time() - start_time
+            
+            logger.info("SQL query executed successfully", extra={
+                'execution_time': execution_time,
+                'rows_returned': len(result),
+                'columns_returned': len(result.columns) if not result.empty else 0,
+                'query_hash': hash(query) % 10000  # Simple hash for query identification
+            })
+            
+            return result
         except Exception as e:
+            execution_time = time.time() - start_time
+            logger.error("SQL query execution failed", extra={
+                'execution_time': execution_time,
+                'error': str(e),
+                'query': query[:500] + "..." if len(query) > 500 else query  # Truncate long queries
+            })
             print("❌ Snowflake error:", e)
             print(f"QUERY: \n {query}")
             print(query)
@@ -294,9 +385,16 @@ class SnowflakeHandler:
 
     def execute_query_md(self, query: str) -> str:
         """
-        Execute a SQL query and return the results.
-        :param query: SQL query string to execute.
-        :return: List of tuples containing query results.
+        Execute a SQL query and return results formatted as markdown table.
+        
+        Args:
+            query: SQL query string to execute
+            
+        Returns:
+            str: Query results formatted as markdown table, or error message if query fails
+            
+        Raises:
+            Exception: If no connection is established
         """
         if not self.connection:
             raise Exception("Connection not established. Call connect() first.")
@@ -313,11 +411,111 @@ class SnowflakeHandler:
         finally:
             cursor.close()
 
+    def get_distinct_values_dict(self, field: str, table: str, filter: str ='', limit: str ='15') -> str:
+        """
+        Get distinct values for a specific field from a table.
+        
+        Args:
+            field: Column name to get distinct values for
+            table: Table name to query
+            filter: Optional WHERE clause filter (default: '')
+            limit: Maximum number of results to return (default: '15')
+            
+        Returns:
+            str: Distinct values formatted as markdown table, or error message if query fails
+            
+        Raises:
+            Exception: If no connection is established
+        """
+        if not self.connection:
+            raise Exception("Connection not established. Call connect() first.")
+        
+        query = f"SELECT DISTINCT {field} FROM {table} {'WHERE ' + filter if filter else ''} {'LIMIT ' + limit if limit else ''}"
+
+        print(query)
+        
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(query)
+            return cursor.fetch_pandas_all().to_markdown()
+        except Exception as e:
+            print("❌ Snowflake error:", e)
+            print(f"QUERY: \n {query}")
+            print(query)
+            return f"❌ Query execution failed \n{str(e)}\n{query}"
+        finally:
+            cursor.close()
+
+    def get_distinct_values_from_table_list_dict(
+        self, queries: List[dict], limit: str = '15') -> str:
+        """
+        Get distinct values for multiple field/table/filter combinations.
+        
+        Args:
+            queries: List of dictionaries, each containing:
+                - 'field': Column name to get distinct values for
+                - 'table': Table name to query  
+                - 'filter': Optional WHERE clause filter (default: '')
+            limit: Maximum number of results to return per query (default: '15')
+            
+        Returns:
+            str: Distinct values formatted as markdown with headers for each query
+            
+        Raises:
+            Exception: If no connection is established
+            
+        Example:
+            queries = [
+                {'field': 'COUNTY', 'table': 'DEMOGRAPHICS', 'filter': "STATE = 'LA'"},
+                {'field': 'CATEGORY', 'table': 'PRODUCTS', 'filter': ''},
+                {'field': 'STATUS', 'table': 'ORDERS', 'filter': "YEAR = 2023"}
+            ]
+        """
+        if not self.connection:
+            raise Exception("Connection not established. Call connect() first.")
+        
+        output = "# Distinct Values Results\n\n"
+        
+        for i, query_spec in enumerate(queries, start=1):
+            field = query_spec.get('field', '')
+            table = query_spec.get('table', '')
+            filter_clause = query_spec.get('filter', '')
+            
+            # Create descriptive header
+            filter_desc = f" (filtered: {filter_clause})" if filter_clause else ""
+            output += f"## {i}. {field} from {self.schema}.{table}{filter_desc}\n\n"
+            
+            # Build and execute query
+            query = f"SELECT DISTINCT {field} FROM {table} {'WHERE ' + filter_clause if filter_clause else ''} {'LIMIT ' + limit if limit else ''}"
+            
+            print(f"Executing query {i}: {query}")
+            
+            cursor = self.connection.cursor()
+            try:
+                cursor.execute(query)
+                result = cursor.fetch_pandas_all().to_markdown()
+                output += f"{result}\n\n"
+            except Exception as e:
+                print(f"❌ Snowflake error for query {i}:", e)
+                print(f"QUERY: \n {query}")
+                output += f"❌ Query {i} failed: {str(e)}\n\n"
+            finally:
+                cursor.close()
+        
+        return output
+
     def execute_query_sample_md(self, query: str) -> str:
         """
-        Execute a SQL query and return the results.
-        :param query: SQL query string to execute.
-        :return: List of tuples containing query results.
+        Execute a SQL query and return results as markdown with limited rows for sampling.
+        
+        Args:
+            query: SQL query string to execute
+            
+        Returns:
+            str: Query results formatted as markdown table, or error message if query fails
+            
+        Raises:
+            Exception: If no connection is established
         """
         if not self.connection:
             raise Exception("Connection not established. Call connect() first.")
@@ -336,9 +534,16 @@ class SnowflakeHandler:
 
     def validate_query(self, query: str) -> str:
         """
-        Execute a SQL query and return the results.
-        :param query: SQL query string to execute.
-        :return: markdown table as str.
+        Validate SQL query syntax without executing it using EXPLAIN.
+        
+        Args:
+            query: SQL query string to validate
+            
+        Returns:
+            str: "✅ Query is valid." if syntax is correct, error message if invalid
+            
+        Raises:
+            Exception: If no connection is established
         """
         if not self.connection:
             raise Exception("Connection not established. Call connect() first.")
@@ -357,7 +562,10 @@ class SnowflakeHandler:
 
     def close_connection(self) -> None:
         """
-        Close the Snowflake connection.
+        Close the active Snowflake connection and reset connection state.
+        
+        Note:
+            Safe to call even if no connection exists. Logs closure information.
         """
         if self.connection:
             self.connection.close()
@@ -402,7 +610,9 @@ if __name__ == "__main__":
 #     with open("snowflake_tables_columns.md", "w") as f:
 #         f.write(results)
 
-    results = snowflake_db.get_tables_info_md(table_list)
+    # results = snowflake_db.get_tables_info_md(table_list)
+
+    results = snowflake_db.get_distinct_values_dict('COUNTY','DEMOGRAPHICS',filter="STATE = 'LA'")
 
     print(results)
 

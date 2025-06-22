@@ -12,16 +12,6 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 ### TOOLS
 
-# @function_tool
-# def get_tables_columns(table_list: list[str]) -> str:
-#     """
-#     Retrieve the columns of specific tables in the database.
-#     :param table_list: List of tables to retrieve columns for.
-#     :return: markdown tables as str.
-#     """
-#     return snowflake_db.get_tables_columns(table_list)
-
-
 ### AGENTS
 
 class VizOutput(BaseModel):
@@ -46,7 +36,7 @@ data_vizualization_agent = Agent(
 
     Use these guidelines:
     Use `line_chart` or `area_chart` when the data involves a continuous numerical variable over time, index, or ordered categories.
-    Use `bar_chart` when comparing categorical data against numerical values. Always sort in ascending order
+    Use `bar_chart` when comparing categorical data against numerical values.
     Use `scatter_chart` to explore relationships between two numerical fields.
 
     If the dataset lacks sufficient numeric or structured categorical data, or the sample size is too small, a chart may not be helpful.
@@ -70,6 +60,15 @@ data_vizualization_agent = Agent(
     3   Grade   9 non-null      object  
     dtypes: int64(2), object(2)  
 
+    ## df sample
+    |    |   ID | Name   |   Marks | Grade   |
+    |---:|-----:|:-------|--------:|:--------|
+    |  0 |   23 | Ram    |      89 | B       |
+    |  1 |   43 | Deep   |      97 | A       |
+    |  2 |   12 | Yash   |      45 | F       |
+    |  3 |   13 | Aman   |      78 | C       |
+    |  4 |   67 | Arjun  |      56 | E       |
+
     ### Example Output
     st.bar_chart(data=df, x="Name", y="Marks", x_label="Student", y_label="Marks", use_container_width=True)
     """
@@ -84,7 +83,17 @@ class ChartAgentFinalOutput(BaseModel):
     message: Optional[str]
     code_block: Optional[str]
 
-async def run_chart_generator_agents(user_input,df_info):
+async def run_chart_generator_agents(user_input: str, df_info: str) -> ChartAgentFinalOutput:
+    """
+    Generate appropriate chart visualization code based on DataFrame structure and user context.
+    
+    Args:
+        user_input: Natural language description of what the user wants to visualize
+        df_info: DataFrame information string containing schema and sample data
+        
+    Returns:
+        ChartAgentFinalOutput: Contains chart code, feasibility decision, and explanatory message
+    """
 
     context = f"User: {user_input}\n\n# DataFrame Info \n{df_info}"
 
@@ -146,6 +155,8 @@ if __name__ == "__main__":
     buffer = io.StringIO()
     df.info(buf=buffer)
     df_info_str = buffer.getvalue()
+
+    df_info_str += f"\n## df sample\n {df.head().to_markdown()}"
 
     print(df_info_str)
 
