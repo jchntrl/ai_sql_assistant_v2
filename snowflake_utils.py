@@ -62,7 +62,8 @@ class SnowflakeHandler:
                 'connection_time': connection_time,
                 'account': self.account,
                 'database': self.database,
-                'schema': self.schema
+                'schema': self.schema,
+                'action': 'connection_opened'
             })
             
             print(f"Connected to Snowflake ({self.database}.{self.schema}).")
@@ -266,7 +267,9 @@ class SnowflakeHandler:
         logger.info("Executing SQL query", extra={
             'query_length': len(query),
             'database': self.database,
-            'schema': self.schema
+            'schema': self.schema,
+            'sql_query_full': query,
+            'action': 'query_execution_start'
         })
         
         if not self.connection:
@@ -283,7 +286,11 @@ class SnowflakeHandler:
                 'execution_time': execution_time,
                 'rows_returned': len(result),
                 'columns_returned': len(result.columns) if not result.empty else 0,
-                'query_hash': hash(query) % 10000  # Simple hash for query identification
+                'query_hash': hash(query) % 10000,  # Simple hash for query identification
+                'database': self.database,
+                'schema': self.schema,
+                'sql_query_full': query,
+                'action': 'query_execution_success'
             })
             
             return result
@@ -292,7 +299,10 @@ class SnowflakeHandler:
             logger.error("SQL query execution failed", extra={
                 'execution_time': execution_time,
                 'error': str(e),
-                'query': query[:500] + "..." if len(query) > 500 else query  # Truncate long queries
+                'database': self.database,
+                'schema': self.schema,
+                'sql_query_full': query,
+                'action': 'query_execution_failed'
             })
             print("❌ Snowflake error:", e)
             print(f"QUERY: \n {query}")
@@ -568,6 +578,11 @@ class SnowflakeHandler:
             Safe to call even if no connection exists. Logs closure information.
         """
         if self.connection:
+            logger.info("Snowflake connection closed", extra={
+                'database': self.database,
+                'schema': self.schema,
+                'action': 'connection_closed'
+            })
             self.connection.close()
             self.connection = None
             print(f"Connection closed ({self.database}.{self.schema}).")

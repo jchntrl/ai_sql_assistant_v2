@@ -147,25 +147,17 @@ database_sme_agent = Agent(
                   
     You do not write the SQL query — your output will be used by another agent that specializes in SQL generation.
     You have access to the database metadata (e.g., table names, column names, datatypes, and relationships). Use this to deeply explore and describe how the user request maps to the schema.
+    
+    If you need to use filters, validate that they return data by using `get_distinct_value`.
 
     If there is not enough information to generate a SQL query, set `sufficient_context` to false and provide a detailed explanation of the problems.
     """
     ), 
     # model="gpt-4o",
     model="gpt-4.1",
-    # tools=[get_database_context,get_tables_columns],
     tools=[get_database_context,get_tables_info,get_distinct_value],
-    # tools=[get_database_context,get_tables_columns,get_tables_sample],
-    # tools=[get_database_context,get_tables_columns,ask_user_for_clarification],
     output_type= DBSMEOutput,
 )
-
-    # In order to achieve your goal you must call the tools at your disposition in this order:
-    # 1. use the `get_database_context` tool to retrieve the database schema, description and table list.
-    # 2. use the 'get_tables_columns' tool to get the table definition of the table you deem relevant
-    # 3. use the `ask_user_for_clarification` tool to ask the user clarifying questions.
-
-    # Do not finish your analysis until you have called the 3 tools above.
 
 class SQLQueryOutput(BaseModel):
     sql_query: str

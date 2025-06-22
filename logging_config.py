@@ -30,6 +30,14 @@ class JSONFormatter(logging.Formatter):
             log_entry['agent_type'] = record.agent_type
         if hasattr(record, 'sql_query'):
             log_entry['sql_query'] = record.sql_query
+        if hasattr(record, 'sql_query_full'):
+            log_entry['sql_query_full'] = record.sql_query_full
+        if hasattr(record, 'database'):
+            log_entry['database'] = record.database
+        if hasattr(record, 'schema'):
+            log_entry['schema'] = record.schema
+        if hasattr(record, 'code_block'):
+            log_entry['code_block'] = record.code_block
         if hasattr(record, 'error_details'):
             log_entry['error_details'] = record.error_details
             
