@@ -135,16 +135,6 @@ if __name__ == "__main__":
     selected_db = 'COVID19_EPIDEMIOLOGICAL_DATA'
     selected_schema = 'PUBLIC'
 
-    user_input = "What is the city that has the highest number of COVID-19 case at the height of the pandemic in the US?"
-
-    user_input = "How many covid cases?"
-
-    user_input = "Who is the president of the United States of America?"
-
-    user_input = "When was the height of the pandemic in NY?"
-
-
-
     # Initialize the Snowflake database handler
     snowflake_db = SnowflakeHandler(
         user=st.secrets["SNOWFLAKE_USER"],
@@ -156,24 +146,27 @@ if __name__ == "__main__":
     
     snowflake_db.connect()
 
-    handoff = 'user'
+    # user_input = "What is the city that has the highest number of COVID-19 case at the height of the pandemic in the US?"
+    # user_input = "How many covid cases?"
+    # user_input = "Who is the president of the United States of America?"
+    user_input = "When was the height of the pandemic in NY?"
 
-    # class RoutingOutput(BaseModel):
-    #     handoff: str
-    #     questions_for_users: Optional[str]
-    #     user_request: Optional[str]
+    handoff = 'user'
 
     with trace("Routing Agent"):
         
         while handoff == 'user':
             
-            routing = asyncio.run(run_routing_agent(user_input,selected_db,selected_schema))
+            routing = asyncio.run(run_routing_agent(user_input,snowflake_db))
             
             handoff = routing.handoff
             
             if handoff == 'user':
+                print("-" * 40)
                 user_answer = input(routing.questions_for_users + '\n')
+                print("-" * 40)
                 user_input = f"user: {user_input}\n\nrouting agent: {routing.questions_for_users}\n\nuser:{user_answer}"
-                print(f"user: {user_input}\n\nrouting agent: {routing.user_request}\n\nuser:{user_answer}")
+                print(f"{user_input}\n\nrouting agent: {routing.user_request}\n\nuser:{user_answer}")
             else: 
-                print(f"user: {user_input}\n\nhandoff -> {handoff}\n\nrouting agent: {routing.user_request}")
+                print("-" * 40)
+                print(f"{user_input}\n\nhandoff -> {handoff}\n\nrouting agent: {routing.user_request}")

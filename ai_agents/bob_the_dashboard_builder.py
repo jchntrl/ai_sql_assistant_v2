@@ -158,7 +158,7 @@ Turn a *natural‑language question* into up to **5 validated visualisations**
 3️⃣ **Design visualisations (dashboard‑designer phase)**
     • Propose ≤ 5 visualisations that, together, address the user’s intent.
     • For each viz, decide the best chart type using these heuristics:
-        – line/area → time‑series or ordered categories  
+        – line/area → time‑series or ordered categories
         – bar       → categorical vs numeric comparisons  
         – scatter   → two numeric fields relationship  
         – map       → lat/lon data
@@ -178,8 +178,13 @@ Turn a *natural‑language question* into up to **5 validated visualisations**
 5️⃣ **Generate Streamlit code (viz‑agent phase)**
     • Only when `sql_valid = true`, you may call
       `get_distinct_values_from_table_list` to decide smart x/y choices.
+    • The following Streamlit components are allowed: 
+        – line/area → `st.line_chart` or `st.area_chart`
+        – bar       → `st.bar_chart`  
+        – scatter   → `st.scatter_chart` 
+        – map       → `st.map`
     • Produce a minimal Streamlit code block and store it in `chart_code`.
-      Assume the SQL result is already loaded into a DataFrame named `df`, e.g.:
+      Assume the SQL result is already loaded into a DataFrame named `df`, and the column name are uppercase e.g.:
         st.bar_chart(data=df, x="…", y="…", use_container_width=True)
     • **Do not** wrap the code in markdown fences – just the code.
 

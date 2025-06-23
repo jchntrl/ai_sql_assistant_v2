@@ -20,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
     )
 
-st.title("👷‍♂️🛠️📊 :yellow[BobGPT:] Your AI-Powered SQL Assistant")
+st.markdown("# 👷‍♂️🛠️📊 <span style='color:gold'>BobGPT:</span> Your AI-Powered SQL Assistant", unsafe_allow_html=True)
 
 st.markdown("#### A smart assistant that queries your Snowflake data using natural language")
 
@@ -96,7 +96,7 @@ if "messages" not in st.session_state:
 
 # --------------- CHAT AVATARS --------------- #
 user_avatar = Image.open("images/julien.png")
-assistant_avatar = Image.open("images/snowgpt.png")
+assistant_avatar = Image.open("images/bobgpt.png")
 
 
 ########################################################################################################
@@ -104,7 +104,8 @@ assistant_avatar = Image.open("images/snowgpt.png")
 ########################################################################################################
 
 with st.chat_message("assistant",avatar=assistant_avatar):
-    st.markdown(f"Hello boss, what can I do for you? I can answer questions about your {selected_db} database and I can even create an **entire dahsboard** if you say please!")
+    st.markdown(f"Hiya boss! 👷‍♂️")
+    st.markdown(f"What are we building today? I can dig into your {selected_db} database and even whip up a whole dashboard — just say the word (and maybe a pretty please)! 🛠️📊")
     st.markdown(f"Just FYI, like Dory in *Finding Nemo* I don't have any memory! :fish:")
     
     on = st.toggle("Force validator agent to review generated SQL queries")
@@ -129,7 +130,7 @@ for message in st.session_state.messages:
             else:
 
                 visualizations = message["visualizations"]
-                num_viz = len(visualizations)
+                num_viz = len([viz for viz in visualizations if viz.chart_code != ''])
                 if num_viz >= 2:
                         # First row (first 2 visualizations)
                         cols = st.columns(2)
@@ -183,7 +184,7 @@ if user_input := st.chat_input(key="Initial request"):
             else:
 
                 visualizations = response.visualizations
-                num_viz = len(visualizations)
+                num_viz = len([viz for viz in visualizations if viz.chart_code != ''])
                 
                 if num_viz >= 2:
                     # First row (first 2 visualizations)

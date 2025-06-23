@@ -187,7 +187,7 @@ for message in st.session_state.messages:
                 else:
 
                     visualizations = message["visualizations"]
-                    num_viz = len(visualizations)
+                    num_viz = len([viz for viz in visualizations if viz.code_block != ''])
                     if num_viz >= 2:
                             # First row (first 2 visualizations)
                             cols = st.columns(2)
@@ -282,7 +282,9 @@ if user_input := st.chat_input(key="Initial request"):
 
                             user_input = "\n".join(str(msg) for msg in st.session_state.user_input_history)
 
+                            print("-" * 40)
                             print(user_input)
+                            print("-" * 40)
 
                             routing = asyncio.run(run_routing_agent(user_input, snowflake_db))
 
@@ -384,7 +386,7 @@ if user_input := st.chat_input(key="Initial request"):
                 else:
 
                     visualizations = response.visualizations
-                    num_viz = len(visualizations)
+                    num_viz = len([viz for viz in visualizations if viz.code_block != ''])
                     
                     if num_viz >= 2:
                         # First row (first 2 visualizations)
