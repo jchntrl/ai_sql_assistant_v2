@@ -139,7 +139,7 @@ assistant_avatar = Image.open("images/snowgpt.png")
 ########################################################################################################
 
 with st.chat_message("assistant",avatar=assistant_avatar):
-    st.markdown(f"Hello boss, what can I do for you? I can answer questions about your {selected_db} database and I can even create an **entire dahsboard** if you say please!")
+    st.markdown(f"Hey there! How can I help today? Ask me anything about your {selected_db} database, and if you’d like a full dashboard built out, just say the word!")
     st.markdown(f"Just FYI, like Dory in *Finding Nemo* I don't have any memory! :fish:")
     
     on = st.toggle("Force validator agent to review generated SQL queries")
