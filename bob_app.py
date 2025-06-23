@@ -79,6 +79,16 @@ if (st.session_state.current_db != selected_db or
     # Update current context tracking
     st.session_state.current_db = selected_db
     st.session_state.current_schema = selected_schema
+
+    # Clear relevant session state
+    keys_to_clear = ['messages']
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
+    
+    # Update current context tracking
+    st.session_state.current_db = selected_db
+    st.session_state.current_schema = selected_schema
     
 
 # Update the database and schema in the SnowflakeHandler
