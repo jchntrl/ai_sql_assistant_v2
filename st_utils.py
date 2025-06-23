@@ -43,7 +43,7 @@ def render_visualization(viz, snowflake_db):
     logger.info("Starting visualization render", extra={
         'viz_name': viz.visualization_name,
         'viz_type': viz.visualization_type,
-        'code_block': viz.code_block,
+        'code_block': viz.chart_code,
         'action': 'visualization_render_start'
     })
     
@@ -68,21 +68,21 @@ def render_visualization(viz, snowflake_db):
     # Execute chart code
     chart_success = True
     try:
-        exec(viz.code_block)
+        exec(viz.chart_code)
         with col3:
             with st.popover("Show chart code", use_container_width=True):
-                st.code(viz.code_block, language="python")
+                st.code(viz.chart_code, language="python")
     except Exception as e:
         chart_success = False
         logger.error("Chart execution failed", extra={
             'viz_name': viz.visualization_name,
             'viz_type': viz.visualization_type,
             'error': str(e),
-            'code_block': viz.code_block,
+            'code_block': viz.chart_code,
             'action': 'chart_execution_failed'
         })
         print("❌ Chart error:", e)
-        print(viz.code_block)
+        print(viz.chart_code)
     
     total_time = time.time() - start_time
     logger.info("Visualization render completed", extra={
@@ -92,7 +92,7 @@ def render_visualization(viz, snowflake_db):
         'query_time': query_time,
         'chart_success': chart_success,
         'rows_returned': len(df),
-        'code_block': viz.code_block,
+        'code_block': viz.chart_code,
         'action': 'visualization_render_completed'
     })
 

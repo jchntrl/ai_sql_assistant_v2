@@ -187,7 +187,7 @@ for message in st.session_state.messages:
                 else:
 
                     visualizations = message["visualizations"]
-                    num_viz = len([viz for viz in visualizations if viz.code_block != ''])
+                    num_viz = len([viz for viz in visualizations if viz.chart_code != ''])
                     if num_viz >= 2:
                             # First row (first 2 visualizations)
                             cols = st.columns(2)
@@ -386,7 +386,7 @@ if user_input := st.chat_input(key="Initial request"):
                 else:
 
                     visualizations = response.visualizations
-                    num_viz = len([viz for viz in visualizations if viz.code_block != ''])
+                    num_viz = len([viz for viz in visualizations if viz.chart_code != ''])
                     
                     if num_viz >= 2:
                         # First row (first 2 visualizations)

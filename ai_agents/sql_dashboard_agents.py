@@ -6,14 +6,13 @@ from typing import Optional, List, Tuple, Any
 from decimal import Decimal
 import asyncio
 import io
-from st_utils import convert_decimals_to_float
 
 import sys
 import os
 # Add the parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from snowflake_utils import SnowflakeHandler
-from st_utils import get_dataframe_info
+from st_utils import get_dataframe_info, convert_decimals_to_float
 
 from agents import Agent, Runner, function_tool, trace, handoff, ModelSettings
 from ai_agents.chart_generator_agents import  data_vizualization_agent
@@ -135,6 +134,7 @@ class Visualization(BaseModel):
     visualization_type: str
     caption: str
     sql_query: str
+    chart_code: Optional[str]
 
 class DashboardDesignerOutput(BaseModel):
     sufficient_context: bool
@@ -166,6 +166,7 @@ For **each visualization**, output the following:
 - `visualization_type`: Choose one of `line_chart`, `bar_chart`, `area_chart`, `scatter_chart`, `map`.
 - `caption`: A short sentence describing the purpose or insight of the visualization.
 - `sql_query`: A Snowflake-compatible SQL query to extract the necessary data. When referencing tables use the format <schema_name>.<table_name>
+- Keep `chart_code` empty as it will be populated by the Chart Agent
 
 Guidelines:
 - If the user input is too vague or ambiguous, identify what additional information is needed, set `sufficient_context = false`.
@@ -175,7 +176,7 @@ Guidelines:
     ), 
     # model="gpt-4o",
     model="gpt-4.1",
-    model_settings=ModelSettings(tool_choice="required"),
+    model_settings=ModelSettings(tool_choice="required", temperature=0.3),
     tools=[get_database_context,get_tables_info,get_distinct_values_from_table_list],
     output_type= DashboardDesignerOutput,
 )
@@ -213,11 +214,17 @@ async def run_sql_dashboard_agents(user_input: str, snowflake_handler: Snowflake
         chart = await Runner.run(data_vizualization_agent,context)
 
         # Create a new instance with added field
-        upd_viz = viz.copy()
-        upd_viz.__dict__["code_block"] = chart.final_output.code_block  # OR see below for better practice
+        upd_viz = viz.model_copy()
+        # upd_viz.__dict__["code_block"] = chart.final_output.code_block
+        upd_viz.chart_code = chart.final_output.code_block
         updated_visualizations.append(upd_viz)
 
     dashboard_result.final_output.visualizations = updated_visualizations
+
+
+    print(("-" * 80) + "\nDashboard Designer Output:")
+    print(dashboard_result)
+    print("-" * 80) 
 
     return dashboard_result.final_output
 
@@ -239,4 +246,4 @@ if __name__ == "__main__":
     
     snowflake_db.connect()
     with trace("SQL Dashboard Agents"):
-        asyncio.run(run_sql_dashboard_agents(user_input,selected_db,selected_schema))
+        asyncio.run(run_sql_dashboard_agents(user_input,snowflake_db))

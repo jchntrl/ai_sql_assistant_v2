@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Tuple, Any
 import asyncio
 
-from agents import Agent, Runner, function_tool, trace, handoff
+from agents import Agent, Runner, function_tool, trace, handoff,ModelSettings
 
 import sys
 import os
@@ -101,6 +101,8 @@ Be cautious. When in doubt, choose to clarify. It is better to ask a follow-up q
 """
     ), 
     model="gpt-4o",
+    model_settings=ModelSettings(tool_choice="required", temperature=0.3),
+    # model_settings=ModelSettings(tool_choice="required", top_p=0.1),
     tools=[get_database_context],
     output_type= RoutingOutput,
 )
