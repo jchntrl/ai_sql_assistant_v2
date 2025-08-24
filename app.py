@@ -28,7 +28,7 @@ from ai_agents.sql_dashboard_agents import run_sql_dashboard_agents
 
 st.set_page_config(
     layout="wide",
-    initial_sidebar_state="collapsed",
+    # initial_sidebar_state="collapsed",
     )
 
 # Test logging setup
@@ -67,8 +67,9 @@ snowflake_db.connect()
 
 selected_db = st.selectbox(
             "__Which database do you want to use?__",
-            list([db[0] for db in snowflake_db.get_databases()]),
+            list([db[0] for db in snowflake_db.get_databases() if not db[0] == "SNOWFLAKE_LEARNING_DB"]),
             # ["SANDBOX"],
+            # ["US_CRIME"],
             index=0,
             placeholder="Select database...",
         )
@@ -77,7 +78,7 @@ snowflake_db.database = selected_db
 
 selected_schema = st.selectbox(
             "__Which schema do you want to use?__",
-            list([schema[0] for schema in snowflake_db.get_schemas() if not schema[0].startswith("INFORMATION_SCHEMA")]),
+            list([schema[0] for schema in snowflake_db.get_schemas() if not schema[0].startswith("INFORMATION_SCHEMA") and not schema[0] == "PUBLIC"]),
             # ["SUPERSTORE"],
             index=0,
             placeholder="Select schema...",
